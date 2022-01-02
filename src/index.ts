@@ -33,7 +33,7 @@ export class DDragonWrapper {
         return response.data.data;
     }
 
-    getChamptionById(id: number) {
+    getChampionById(id: number) {
         if (!this.champions) {
             console.error('cache not populated, please build this class first.');
             return;
@@ -127,13 +127,13 @@ export class RiotWrapper extends DDragonWrapper {
     console.log('Sardoche\'s team:');
     game.participants.forEach(p => {
         if (p.teamId === summonerTeamId) {
-            console.log(`\t${p.summonerName} (${wrapper.getChamptionById(p.championId)?.id})`);
+            console.log(`\t${p.summonerName} (${wrapper.getChampionById(p.championId)?.id})`);
         }
     });
     console.log('Opponent\'s team:');
     game.participants.forEach(p => {
         if (p.teamId !== summonerTeamId) {
-            console.log(`\t${p.summonerName} (${wrapper.getChamptionById(p.championId)?.id})`);
+            console.log(`\t${p.summonerName} (${wrapper.getChampionById(p.championId)?.id})`);
         }
     });
 })();
