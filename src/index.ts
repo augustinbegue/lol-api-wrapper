@@ -1,10 +1,10 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import dotenv from 'dotenv';
-import type { CurrentGameInfo, SummonerDTO } from '../types';
+import type { CurrentGameInfo, LeagueEntryDTO, SummonerDTO } from '../types';
 
 dotenv.config();
 
-export class DDragonWrapper {
+class DDragonWrapper {
     private dataendpoint: string;
     private dataconfig: AxiosRequestConfig;
     private datareq: AxiosInstance;
@@ -83,9 +83,15 @@ export class RiotWrapper extends DDragonWrapper {
         }
     }
 
-    async getSummonerByName(name: string): Promise<SummonerDTO | undefined> {
+    async getSummonerIdsByName(name: string): Promise<SummonerDTO | undefined> {
         name = encodeURI(name);
         const response = await this.RIOTApiRequest(`/lol/summoner/v4/summoners/by-name/${name}`);
+
+        return response.data;
+    }
+
+    async getLeagueEntryBySummonerId(summonerId: string): Promise<LeagueEntryDTO[] | undefined> {
+        const response = await this.RIOTApiRequest(`/lol/league/v4/entries/by-summoner/${summonerId}`);
 
         return response.data;
     }
@@ -111,9 +117,10 @@ export class RiotWrapper extends DDragonWrapper {
     }
 }
 
+// TODO: Remove - Test function
 (async () => {
     const wrapper = await RiotWrapper.build();
-    const summoner = await wrapper.getSummonerByName('Ăzs');
+    const summoner = await wrapper.getSummonerIdsByName('Ăzs');
     const game = await wrapper.getActiveGame(summoner.id);
 
     if (!game) {
@@ -123,17 +130,33 @@ export class RiotWrapper extends DDragonWrapper {
 
     const summonerTeamId = game.participants.find(p => p.summonerName === summoner.name)?.teamId;
 
+    const strgameid = 'EUW1_' + game.gameId;
+
     console.log('Sardoche is currently in a game!');
+    console.log('Game ID:', strgameid);
     console.log('Sardoche\'s team:');
-    game.participants.forEach(p => {
+
+    for (let i = 0; i < game.participants.length; i++) {
+        const p = game.participants[i];
+
         if (p.teamId === summonerTeamId) {
-            console.log(`\t${p.summonerName} (${wrapper.getChampionById(p.championId)?.id})`);
+            const leagueEntry = await wrapper.getLeagueEntryBySummonerId(p.summonerId);
+            const rankedEntry = leagueEntry.find(e => e.queueType === 'RANKED_SOLO_5x5');
+
+            console.log(`\t${p.summonerName} (${wrapper.getChampionById(p.championId)?.id}) - ${rankedEntry.tier} ${rankedEntry.rank}`);
         }
-    });
+    }
+
     console.log('Opponent\'s team:');
-    game.participants.forEach(p => {
+
+    for (let i = 0; i < game.participants.length; i++) {
+        const p = game.participants[i];
+
         if (p.teamId !== summonerTeamId) {
-            console.log(`\t${p.summonerName} (${wrapper.getChampionById(p.championId)?.id})`);
+            const leagueEntry = await wrapper.getLeagueEntryBySummonerId(p.summonerId);
+            const rankedEntry = leagueEntry.find(e => e.queueType === 'RANKED_SOLO_5x5');
+
+            console.log(`\t${p.summonerName} (${wrapper.getChampionById(p.championId)?.id}) - ${rankedEntry.tier} ${rankedEntry.rank}`);
         }
-    });
+    }
 })();
