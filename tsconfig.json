@@ -1,16 +1,23 @@
 {
     "compilerOptions": {
-        "target": "es5",
-        "module": "commonjs",
         "declaration": true,
-        "outDir": "./lib",
-        "strict": true
+        "strictNullChecks": true,
+        "target": "es5",
+        "outDir": "dist",
+        "module": "commonjs",
+        "moduleResolution": "node",
+        "sourceMap": true,
+        "lib": [
+            "es2015",
+            "dom"
+        ],
+        "rootDir": "src"
     },
     "include": [
         "src"
     ],
     "exclude": [
         "node_modules",
-        "**/__tests__/*"
+        "dist"
     ]
 }
