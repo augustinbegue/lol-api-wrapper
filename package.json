@@ -1,6 +1,6 @@
 {
   "name": "lol-api-wrapper",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "NodeJS wrapper for the League of Legends and Summoner parts of the RIOT Games API (https://developer.riotgames.com/)",
   "main": "dist/index.js",
   "scripts": {
@@ -38,6 +38,7 @@
     "dotenv": "^10.0.0"
   },
   "files": [
-    "dist"
+    "dist",
+    "types"
   ]
 }
