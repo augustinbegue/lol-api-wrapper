@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import * as dotenv from 'dotenv';
-import type { CurrentGameInfo, LeagueEntryDTO, MatchDTO, SummonerDTO } from '../types';
+import type { CurrentGameInfo, LeagueEntryDTO, MatchDTO, MatchTimelineDTO, SummonerDTO } from '../types';
 
 dotenv.config();
 
@@ -111,6 +111,12 @@ export class RiotWrapper extends DDragonWrapper {
 
     async getMatchById(matchId: string): Promise<MatchDTO> {
         const response = await this.EUROPEApiRequest(`/lol/match/v5/matches/${matchId}`);
+
+        return response?.data;
+    }
+
+    async getMatchTimelineById(matchId: string): Promise<MatchTimelineDTO> {
+        const response = await this.EUROPEApiRequest(`/lol/match/v5/matches/${matchId}/timeline`);
 
         return response?.data;
     }
