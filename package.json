@@ -1,6 +1,6 @@
 {
   "name": "lol-api-wrapper",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "NodeJS wrapper for the League of Legends and Summoner parts of the RIOT Games API (https://developer.riotgames.com/)",
   "main": "dist/index.js",
   "scripts": {
@@ -27,6 +27,7 @@
   },
   "homepage": "https://github.com/augustinbegue/lol-api-wrapper#readme",
   "devDependencies": {
+    "@types/node": "^18.11.18",
     "@typescript-eslint/eslint-plugin": "^5.8.1",
     "@typescript-eslint/parser": "^5.8.1",
     "eslint": "^8.6.0",
