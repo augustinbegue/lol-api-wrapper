@@ -1,3 +1,5 @@
+import { MiniSeriesDTO } from ".";
+
 export interface LeagueEntryDTO {
     leagueId: string;
     queueType: string;
@@ -12,4 +14,5 @@ export interface LeagueEntryDTO {
     inactive: boolean;
     freshBlood: boolean;
     hotStreak: boolean;
+    miniSeries?: MiniSeriesDTO;
 }
