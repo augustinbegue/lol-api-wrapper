@@ -29,7 +29,7 @@ export class RiotApiWrapper {
         prefix: RiotPlatform | RiotRegion,
         path: string
     ): Promise<Response> {
-        const res = await fetch(`https://${encodeURIComponent(prefix)}.${RiotApiWrapper.hostname}${encodeURIComponent(path)}`,
+        const res = await fetch(`https://${encodeURIComponent(prefix)}.${RiotApiWrapper.hostname}${path}`,
             {
                 method: "GET",
                 headers: {
