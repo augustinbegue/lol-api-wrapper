@@ -1,13 +1,10 @@
-
 export class RiotApiError extends Error {
     url: string;
-    statusCode: number;
-    statusText: string;
+    response: Response;
 
-    constructor(url: string, statusCode: number, statusText: string) {
-        super(`[lol-api-wrapper] ${url}: ${statusCode} ${statusText}`);
+    constructor(url: string, response: Response) {
+        super(`[lol-api-wrapper] ${url}: ${response.status}`);
         this.url = url;
-        this.statusCode = statusCode;
-        this.statusText = statusText;
+        this.response = response;
     }
 }

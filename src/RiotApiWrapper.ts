@@ -2,44 +2,68 @@ import type {
     CurrentGameInfo,
     LeagueEntryDTO,
     LeagueListDTO,
-    LeagueDivision,
     LeagueQueue,
     LeagueTier,
     MatchDTO,
     MatchTimelineDTO,
-    SummonerDTO
+    SummonerDTO,
 } from "../types";
 import { RiotApiError } from "./RiotApiError";
 import { RiotPlatform, RiotRegion } from ".";
-
+import { RateLimitHandler } from "./RateLimitHandler";
 
 export class RiotApiWrapper {
     protected static readonly hostname = "api.riotgames.com";
-    private readonly apiKey: string;
 
-    constructor(apiKey: string) {
+    private readonly apiKey: string;
+    private rateLimitHandler: RateLimitHandler;
+
+    constructor(
+        apiKey: string,
+        options?: { rateLimitHandler?: RateLimitHandler },
+    ) {
         if (apiKey === undefined) {
-            throw new Error(`[lol-api-wrapper] No apiKey was provided.`);
+            throw new Error("[lol-api-wrapper] No apiKey was provided.");
         } else {
             this.apiKey = apiKey;
+        }
+
+        if (options?.rateLimitHandler !== undefined) {
+            this.rateLimitHandler = options.rateLimitHandler;
         }
     }
 
     async ApiRequest(
         prefix: RiotPlatform | RiotRegion,
-        path: string
+        path: string,
     ): Promise<Response> {
-        const res = await fetch(`https://${encodeURIComponent(prefix)}.${RiotApiWrapper.hostname}${path}`,
+        const res = await fetch(
+            `https://${encodeURIComponent(prefix)}.${
+                RiotApiWrapper.hostname
+            }${path}`,
             {
                 method: "GET",
                 headers: {
                     "X-Riot-Token": this.apiKey,
                 },
-            }
+            },
         );
 
+        if (this.rateLimitHandler) {
+            const rateLimited =
+                await this.rateLimitHandler.handleRateLimitHeaders(
+                    prefix,
+                    path,
+                    res.headers,
+                );
+
+            if (rateLimited) {
+                return this.ApiRequest(prefix, path);
+            }
+        }
+
         if (!res.ok) {
-            throw new RiotApiError(res.url, res.status, res.statusText);
+            throw new RiotApiError(path, res);
         }
 
         return res;
@@ -47,57 +71,66 @@ export class RiotApiWrapper {
 
     /*
      * summoner-v4
-    */
+     */
     async getSummonerByAccountId(
         platform: RiotPlatform,
-        accountId: string
+        accountId: string,
     ): Promise<SummonerDTO> {
         const response = await this.ApiRequest(
             platform,
-            `/lol/summoner/v4/summoners/by-account/${accountId}`
+            `/lol/summoner/v4/summoners/by-account/${accountId}`,
         );
 
         return await response.json();
     }
 
-    async getSummonerByName(platform: RiotPlatform, name: string): Promise<SummonerDTO> {
+    async getSummonerByName(
+        platform: RiotPlatform,
+        name: string,
+    ): Promise<SummonerDTO> {
         name = encodeURI(name);
         const response = await this.ApiRequest(
             platform,
-            `/lol/summoner/v4/summoners/by-name/${name}`
+            `/lol/summoner/v4/summoners/by-name/${name}`,
         );
 
         return await response.json();
     }
 
-    async getSummonerByPuuid(platform: RiotPlatform, puuid: string): Promise<SummonerDTO> {
+    async getSummonerByPuuid(
+        platform: RiotPlatform,
+        puuid: string,
+    ): Promise<SummonerDTO> {
         const response = await this.ApiRequest(
             platform,
-            `/lol/summoner/v4/summoners/by-puuid/${puuid}`
+            `/lol/summoner/v4/summoners/by-puuid/${puuid}`,
         );
 
         return await response.json();
     }
 
-    async getSummonerBySummonerId(platform: RiotPlatform, summonerId: string): Promise<SummonerDTO> {
+    async getSummonerBySummonerId(
+        platform: RiotPlatform,
+        summonerId: string,
+    ): Promise<SummonerDTO> {
         const response = await this.ApiRequest(
             platform,
-            `/lol/summoner/v4/summoners/${summonerId}`
+            `/lol/summoner/v4/summoners/${summonerId}`,
         );
 
         return await response.json();
     }
 
     /*
-    * league-v4
-    */
+     * league-v4
+     */
     async getLeagueEntriesBySummonerId(
         platform: RiotPlatform,
-        summonerId: string
+        summonerId: string,
     ): Promise<LeagueEntryDTO[]> {
         const response = await this.ApiRequest(
             platform,
-            `/lol/league/v4/entries/by-summoner/${summonerId}`
+            `/lol/league/v4/entries/by-summoner/${summonerId}`,
         );
 
         return response.json();
@@ -107,11 +140,11 @@ export class RiotApiWrapper {
         platform: RiotPlatform,
         queue: LeagueQueue,
         tier: "IRON" | "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND",
-        division: LeagueTier
+        division: LeagueTier,
     ): Promise<LeagueEntryDTO[]> {
         const response = await this.ApiRequest(
             platform,
-            `/lol/league/v4/entries/${queue}/${tier}/${division}`
+            `/lol/league/v4/entries/${queue}/${tier}/${division}`,
         );
 
         return response.json();
@@ -120,7 +153,7 @@ export class RiotApiWrapper {
     async getLeagueListEntries(
         platform: RiotPlatform,
         queue: LeagueQueue,
-        tier: "MASTER" | "GRANDMASTER" | "CHALLENGER"
+        tier: "MASTER" | "GRANDMASTER" | "CHALLENGER",
     ): Promise<LeagueListDTO> {
         let list = "";
 
@@ -138,49 +171,101 @@ export class RiotApiWrapper {
 
         const response = await this.ApiRequest(
             platform,
-            `/lol/league/v4/${list}/by-queue/${queue}`
+            `/lol/league/v4/${list}/by-queue/${queue}`,
         );
 
         return response.json();
     }
 
     /*
-    * spectator-v4
-    */
-    async getActiveGameBySummonerId(platform: RiotPlatform, summonerId: string): Promise<CurrentGameInfo> {
+     * spectator-v4
+     */
+    async getActiveGameBySummonerId(
+        platform: RiotPlatform,
+        summonerId: string,
+    ): Promise<CurrentGameInfo> {
         const response = await this.ApiRequest(
             platform,
-            `/lol/spectator/v4/active-games/by-summoner/${summonerId}`
+            `/lol/spectator/v4/active-games/by-summoner/${summonerId}`,
         );
 
         return response.json();
     }
 
     /*
-    * match-v5
-    */
-    async getMatchByMatchId(region: RiotRegion, matchId: string): Promise<MatchDTO> {
+     * match-v5
+     */
+    async getMatchByMatchId(
+        region: RiotRegion,
+        matchId: string,
+    ): Promise<MatchDTO> {
         const response = await this.ApiRequest(
             region,
-            `/lol/match/v5/matches/${matchId}`
+            `/lol/match/v5/matches/${matchId}`,
         );
 
         return response.json();
     }
 
-    async getMatchTimelineByMatchId(region: RiotRegion, matchId: string): Promise<MatchTimelineDTO> {
+    async getMatchTimelineByMatchId(
+        region: RiotRegion,
+        matchId: string,
+    ): Promise<MatchTimelineDTO> {
         const response = await this.ApiRequest(
             region,
-            `/lol/match/v5/matches/${matchId}/timeline`
+            `/lol/match/v5/matches/${matchId}/timeline`,
         );
 
         return response.json();
     }
 
-    async getMatchIdsByPuuid(region: RiotRegion, puuid: string): Promise<string[]> {
+    async getMatchIdsByPuuid(
+        region: RiotRegion,
+        puuid: string,
+        options?: {
+            startDate?: Date;
+            endDate?: Date;
+            queue?: number;
+            type?: string;
+            start?: number;
+            count?: number;
+        },
+    ): Promise<string[]> {
+        let query = "";
+
+        if (options) {
+            if (options.startDate !== undefined) {
+                query += `&startTime=${options.startDate.getTime() / 1000}`;
+            }
+
+            if (options.endDate !== undefined) {
+                query += `&endTime=${options.endDate.getTime() / 1000}`;
+            }
+
+            if (options.queue !== undefined) {
+                query += `&queue=${options.queue}`;
+            }
+
+            if (options.type !== undefined) {
+                query += `&type=${options.type}`;
+            }
+
+            if (options.start !== undefined) {
+                query += `&start=${options.start}`;
+            }
+
+            if (options.count !== undefined) {
+                query += `&count=${options.count}`;
+            }
+
+            if (query !== "") {
+                query = "?" + query.substring(1);
+            }
+        }
+
         const response = await this.ApiRequest(
             region,
-            `/lol/match/v5/matches/by-puuid/${puuid}/ids`
+            `/lol/match/v5/matches/by-puuid/${puuid}/ids${query}`,
         );
 
         return response.json();
