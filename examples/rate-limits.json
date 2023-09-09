@@ -1,22 +1,22 @@
 {
     "app:1": {
-        "rateLimitEnd": 1694247680811,
+        "rateLimitEnd": 1694248518903,
         "rateLimit": 20,
-        "rateLimitCount": 4
+        "rateLimitCount": 8
     },
     "app:120": {
-        "rateLimitEnd": 1694247799812,
+        "rateLimitEnd": 1694248632602,
         "rateLimit": 100,
         "rateLimitCount": 99
     },
     "euw1:league:challengerleagues:by-queue": {
-        "rateLimitEnd": 1694247552077,
+        "rateLimitEnd": 1694248522602,
         "rateLimit": 30,
         "rateLimitCount": 1
     },
     "euw1:spectator:active-games:by-summoner": {
-        "rateLimitEnd": 1694247689813,
+        "rateLimitEnd": 1694248522655,
         "rateLimit": 20000,
-        "rateLimitCount": 99
+        "rateLimitCount": 98
     }
 }

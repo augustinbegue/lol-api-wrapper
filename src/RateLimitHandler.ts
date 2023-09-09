@@ -149,8 +149,15 @@ export class RateLimitHandler {
                 const [limit, rateLimitPeriod] = appLimit.split(":");
                 const [count, _] = appLimitCount.split(":");
 
-                const rateLimitEnd =
+                let rateLimitEnd =
                     Date.now() + parseInt(rateLimitPeriod) * 1000;
+                let rateLimitObject = await this.getRateLimit(
+                    `app:${rateLimitPeriod}`,
+                );
+                if (parseInt(count) !== 1 && rateLimitObject) {
+                    rateLimitEnd = rateLimitObject.rateLimitEnd;
+                }
+
                 await this.setRateLimit(
                     `app:${rateLimitPeriod}`,
                     rateLimitEnd,
@@ -189,7 +196,11 @@ export class RateLimitHandler {
             const [limit, seconds] = methodRateLimit.split(":");
             const [count, _] = methodRateLimitCount.split(":");
 
-            const rateLimitEnd = Date.now() + parseInt(seconds) * 1000;
+            let rateLimitEnd = Date.now() + parseInt(seconds) * 1000;
+            let rateLimitObject = await this.getRateLimit(rateLimitMethod);
+            if (parseInt(count) !== 1 && rateLimitObject) {
+                rateLimitEnd = rateLimitObject.rateLimitEnd;
+            }
             await this.setRateLimit(
                 rateLimitMethod,
                 rateLimitEnd,
@@ -240,7 +251,10 @@ export class RateLimitHandler {
                 continue;
             }
 
-            if (rt?.rateLimit <= rt?.rateLimitCount + 1) {
+            if (
+                rt?.rateLimit <= rt?.rateLimitCount + 1 &&
+                rt.rateLimitEnd > Date.now()
+            ) {
                 if (this.logErrors) {
                     this.errorLogFunction(
                         `[lol-api-wrapper] [${rateLimit}] Rate limit exceeded. ${
