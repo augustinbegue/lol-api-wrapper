@@ -1,5 +1,22 @@
 {
-    "1": 1693595209333,
-    "euw1:league:challengerleagues:by-queue": 1693595213556,
-    "euw1:spectator:active-games:by-summoner": 1693486641526
+    "app:1": {
+        "rateLimitEnd": 1694247680811,
+        "rateLimit": 20,
+        "rateLimitCount": 4
+    },
+    "app:120": {
+        "rateLimitEnd": 1694247799812,
+        "rateLimit": 100,
+        "rateLimitCount": 99
+    },
+    "euw1:league:challengerleagues:by-queue": {
+        "rateLimitEnd": 1694247552077,
+        "rateLimit": 30,
+        "rateLimitCount": 1
+    },
+    "euw1:spectator:active-games:by-summoner": {
+        "rateLimitEnd": 1694247689813,
+        "rateLimit": 20000,
+        "rateLimitCount": 99
+    }
 }
