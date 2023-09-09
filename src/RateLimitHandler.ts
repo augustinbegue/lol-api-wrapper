@@ -1,7 +1,13 @@
 import { RiotPlatform, RiotRegion } from ".";
 
+export interface RateLimit {
+    rateLimitEnd: number;
+    rateLimit: number;
+    rateLimitCount: number;
+}
+
 export class RateLimitHandler {
-    private rateLimitResets: Map<string, number>;
+    private rateLimitResets: Map<string, RateLimit>;
 
     private logLevel: "none" | "error" | "info" = "none";
     private logErrors: boolean = true;
@@ -12,13 +18,28 @@ export class RateLimitHandler {
     private setRateLimit: (
         rateLimitMethod: string,
         rateLimitEnd: number,
-    ) => Promise<void> = async (rateLimitMethod, rateLimitEnd) => {
-        this.rateLimitResets.set(rateLimitMethod, rateLimitEnd);
+        rateLimit: number,
+        rateLimitCount: number,
+    ) => Promise<void> = async (
+        rateLimitMethod,
+        rateLimitEnd,
+        rateLimit,
+        rateLimitCount,
+    ) => {
+        this.rateLimitResets.set(rateLimitMethod, {
+            rateLimitEnd,
+            rateLimit,
+            rateLimitCount,
+        });
     };
-    private getRateLimit: (rateLimitMethod: string) => Promise<number | null> =
-        async (rateLimitMethod) => {
-            return this.rateLimitResets.get(rateLimitMethod) ?? null;
-        };
+    private getRateLimit: (
+        rateLimitMethod: string,
+    ) => Promise<RateLimit | null> = async (rateLimitMethod) => {
+        return this.rateLimitResets.get(rateLimitMethod) ?? null;
+    };
+    private getRateLimitTypes: () => Promise<string[]> = async () => {
+        return Array.from(this.rateLimitResets.keys());
+    };
 
     constructor(options: {
         logLevel: "none" | "error" | "info";
@@ -28,8 +49,13 @@ export class RateLimitHandler {
         storeRateLimitsFunction?: (
             rateLimitMethod: string,
             rateLimitEnd: number,
+            rateLimit: number,
+            rateLimitCount: number,
         ) => Promise<void>;
-        getRateLimitsFunction?: (rateLimitMethod: string) => Promise<number>;
+        getRateLimitsFunction?: (
+            rateLimitMethod: string,
+        ) => Promise<RateLimit | null>;
+        getRateLimitTypesFunction?: () => Promise<string[]>;
     }) {
         this.logLevel = options.logLevel;
         this.logErrors =
@@ -40,18 +66,21 @@ export class RateLimitHandler {
 
         if (
             options.getRateLimitsFunction === undefined &&
-            options.storeRateLimitsFunction === undefined
+            options.storeRateLimitsFunction === undefined &&
+            options.getRateLimitTypesFunction === undefined
         ) {
             this.rateLimitResets = new Map();
         } else if (
             options.getRateLimitsFunction !== undefined &&
-            options.storeRateLimitsFunction !== undefined
+            options.storeRateLimitsFunction !== undefined &&
+            options.getRateLimitTypesFunction !== undefined
         ) {
             this.setRateLimit = options.storeRateLimitsFunction;
             this.getRateLimit = options.getRateLimitsFunction;
+            this.getRateLimitTypes = options.getRateLimitTypesFunction;
         } else {
             throw new Error(
-                "[lol-api-wrapper] Both getRateLimitsFunction and storeRateLimitsFunction must be provided.",
+                "[lol-api-wrapper] getRateLimitsFunction, storeRateLimitsFunction and getRateLimitTypesFunction must be provided.",
             );
         }
     }
@@ -118,18 +147,17 @@ export class RateLimitHandler {
                 const appLimitCount = appLimitsCount[i];
 
                 const [limit, rateLimitPeriod] = appLimit.split(":");
-                const [count, countLimit] = appLimitCount.split(":");
-
-                if (parseInt(count) === 1) {
-                    await this.setRateLimit(
-                        rateLimitPeriod,
-                        Date.now() + parseInt(rateLimitPeriod) * 1000,
-                    );
-                }
+                const [count, _] = appLimitCount.split(":");
 
                 const rateLimitEnd =
-                    (await this.getRateLimit(rateLimitPeriod)) ??
                     Date.now() + parseInt(rateLimitPeriod) * 1000;
+                await this.setRateLimit(
+                    `app:${rateLimitPeriod}`,
+                    rateLimitEnd,
+                    parseInt(limit),
+                    parseInt(count),
+                );
+
                 const seconds = Math.ceil((rateLimitEnd - Date.now()) / 1000);
 
                 if (parseInt(count) >= parseInt(limit)) {
@@ -159,18 +187,16 @@ export class RateLimitHandler {
 
         if (methodRateLimit !== null && methodRateLimitCount !== null) {
             const [limit, seconds] = methodRateLimit.split(":");
-            const [count, countSeconds] = methodRateLimitCount.split(":");
+            const [count, _] = methodRateLimitCount.split(":");
 
-            if (parseInt(count) === 1) {
-                await this.setRateLimit(
-                    rateLimitMethod,
-                    Date.now() + parseInt(seconds) * 1000,
-                );
-            }
+            const rateLimitEnd = Date.now() + parseInt(seconds) * 1000;
+            await this.setRateLimit(
+                rateLimitMethod,
+                rateLimitEnd,
+                parseInt(limit),
+                parseInt(count),
+            );
 
-            const rateLimitEnd =
-                (await this.getRateLimit(rateLimitMethod)) ??
-                Date.now() + parseInt(seconds) * 1000;
             const secondsPassed = Math.ceil((rateLimitEnd - Date.now()) / 1000);
 
             if (parseInt(count) >= parseInt(limit)) {
@@ -195,5 +221,74 @@ export class RateLimitHandler {
         }
 
         return false;
+    }
+
+    public async checkForRateLimit(
+        prefix: RiotPlatform | RiotRegion,
+        path: string,
+    ): Promise<string | undefined> {
+        const rateLimits = await this.getRateLimitTypes();
+
+        for (const rateLimit of rateLimits) {
+            if (!rateLimit.startsWith("app:")) {
+                continue;
+            }
+
+            const rt = await this.getRateLimit(rateLimit);
+
+            if (!rt || rt?.rateLimitEnd === null) {
+                continue;
+            }
+
+            if (rt?.rateLimit <= rt?.rateLimitCount + 1) {
+                if (this.logErrors) {
+                    this.errorLogFunction(
+                        `[lol-api-wrapper] [${rateLimit}] Rate limit exceeded. ${
+                            rt.rateLimitEnd - Date.now()
+                        }ms remaining.`,
+                    );
+                }
+
+                return rateLimit;
+            }
+        }
+
+        const rateLimitMethod = this.getRateLimitMethod(prefix, path);
+
+        const rt = await this.getRateLimit(rateLimitMethod);
+
+        if (!rt || rt?.rateLimitEnd === null) {
+            return;
+        }
+
+        if (rt?.rateLimit <= rt?.rateLimitCount + 1) {
+            if (this.logErrors) {
+                this.errorLogFunction(
+                    `[lol-api-wrapper] [${rateLimitMethod}] Rate limit exceeded.`,
+                );
+            }
+
+            return rateLimitMethod;
+        }
+    }
+
+    public async waitForRateLimitReset(rateLimitMethod: string): Promise<void> {
+        const rt = await this.getRateLimit(rateLimitMethod);
+
+        if (!rt || rt.rateLimitEnd === null) {
+            return;
+        }
+
+        const seconds = Math.ceil((rt.rateLimitEnd - Date.now()) / 1000);
+
+        if (this.logInfo) {
+            this.logFunction(
+                `[lol-api-wrapper] [${rateLimitMethod}] Waiting for rate limit reset in ${seconds}s`,
+            );
+        }
+
+        await new Promise((resolve) =>
+            setTimeout(resolve, rt.rateLimitEnd - Date.now()),
+        );
     }
 }

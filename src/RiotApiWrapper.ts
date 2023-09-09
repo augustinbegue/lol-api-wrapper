@@ -12,6 +12,12 @@ import { RiotApiError } from "./RiotApiError";
 import { RiotPlatform, RiotRegion } from ".";
 import { RateLimitHandler } from "./RateLimitHandler";
 
+interface ApiRequestInternal {
+    prefix: RiotPlatform | RiotRegion;
+    path: string;
+    callback: (response: Response) => void;
+}
+
 export class RiotApiWrapper {
     protected static readonly hostname = "api.riotgames.com";
 
@@ -33,14 +39,44 @@ export class RiotApiWrapper {
         }
     }
 
-    async ApiRequest(
-        prefix: RiotPlatform | RiotRegion,
-        path: string,
-    ): Promise<Response> {
+    requestQueue: ApiRequestInternal[] = [];
+
+    private async processRequestQueue(): Promise<void> {
+        if (this.requestQueue.length === 0) {
+            return;
+        }
+
+        const request = this.requestQueue[0];
+
+        if (this.rateLimitHandler !== undefined) {
+            const rateLimitMethod =
+                await this.rateLimitHandler.checkForRateLimit(
+                    request.prefix,
+                    request.path,
+                );
+
+            if (rateLimitMethod) {
+                // Skip this request and try again later
+                this.requestQueue.shift();
+                this.requestQueue.push(request);
+
+                if (this.requestQueue.length === 1) {
+                    // If this is the only request in the queue, wait for the rate limit to reset
+                    await this.rateLimitHandler.waitForRateLimitReset(
+                        rateLimitMethod,
+                    );
+                } else {
+                    // Otherwise, process the next request in the queue
+                    this.processRequestQueue();
+                    return;
+                }
+            }
+        }
+
         const res = await fetch(
-            `https://${encodeURIComponent(prefix)}.${
+            `https://${encodeURIComponent(request.prefix)}.${
                 RiotApiWrapper.hostname
-            }${path}`,
+            }${request.path}`,
             {
                 method: "GET",
                 headers: {
@@ -52,21 +88,49 @@ export class RiotApiWrapper {
         if (this.rateLimitHandler) {
             const rateLimited =
                 await this.rateLimitHandler.handleRateLimitHeaders(
-                    prefix,
-                    path,
+                    request.prefix,
+                    request.path,
                     res.headers,
                 );
 
             if (rateLimited) {
-                return this.ApiRequest(prefix, path);
+                // Skip this request and try again later
+                this.requestQueue.shift();
+                this.requestQueue.push(request);
+                this.processRequestQueue();
+                return;
             }
         }
 
-        if (!res.ok) {
-            throw new RiotApiError(path, res);
-        }
+        request.callback(res);
 
-        return res;
+        this.requestQueue.shift();
+        this.processRequestQueue();
+    }
+
+    async ApiRequest(
+        prefix: RiotPlatform | RiotRegion,
+        path: string,
+    ): Promise<Response> {
+        return new Promise(async (resolve, reject) => {
+            const request: ApiRequestInternal = {
+                prefix,
+                path,
+                callback: (response: Response) => {
+                    if (response.status === 200) {
+                        resolve(response);
+                    } else {
+                        reject(new RiotApiError(path, response));
+                    }
+                },
+            };
+
+            this.requestQueue.push(request);
+
+            if (this.requestQueue.length === 1) {
+                this.processRequestQueue();
+            }
+        });
     }
 
     /*
